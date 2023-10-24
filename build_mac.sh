@@ -1,3 +1,5 @@
+#!/bin/bash
+
 mkdir build
 mkdir build/mac
 mkdir build/ios

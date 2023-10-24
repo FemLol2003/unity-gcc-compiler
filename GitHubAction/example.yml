@@ -1,0 +1,106 @@
+name: Multi-OS Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-mac:
+    name: Build on MacOS
+    runs-on: macos-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set execute permissions for script (macOS)
+      run: sudo chmod +x build_mac.sh
+
+    - name: Build C library (macOS)
+      run: sudo bash ./build_mac.sh
+
+    - name: Upload build folder
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-macos
+        path: build
+
+  build-linux:
+    name: Build on Linux
+    runs-on: ubuntu-latest
+    container:
+      image: femlolstudio/gccbuilder:latest
+      options: --user 0:0  # Run as root (optional, based on your container's requirements)
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    # These are preinstalled in the Docker image
+    #- name: Install dependencies (Linux)
+    #  run: sudo bash ./gcc/install.sh
+
+    - name: Build C library (Linux)
+      run: bash ./build.sh
+
+    - name: Upload build folder
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-linux
+        path: build
+
+  merge-artifacts:
+    needs: [ build-mac, build-linux ]
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      #- name: Checkout repository
+      #  uses: actions/checkout@v4
+
+      - name: Get the tag name
+        run: echo "The tag is ${{ github.ref }}"
+        shell: bash
+            
+      - name: Create directory for merged builds
+        run: mkdir build
+            
+      - name: Download and extract macOS artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-macos
+          path: build
+            
+      - name: Download and extract Linux artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-linux
+          path: build
+            
+      - name: List contents of merged build directory
+        run: ls -R build
+
+      - name: Upload merged build directory
+        uses: actions/upload-artifact@v3
+        with:
+            name: merged-build
+            path: build
+      
+      - name: Zip the build directory
+        run: zip -r build.zip build
+      
+      - name: Prepare
+        id: prepare
+        run: |
+          echo "tag_name=build-${{ github.ref_name }}-$(date +'%Y-%m-%d-%H-%M')" >> $GITHUB_OUTPUT
+  
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.prepare.outputs.tag_name }}
+          files: build.zip
+          body: Description of the release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
