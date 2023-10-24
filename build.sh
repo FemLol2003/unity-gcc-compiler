@@ -58,4 +58,3 @@ echo "Cleaning up..."
 rm $file.o
 
 echo "---FINISHED---"
-pause
